@@ -64,7 +64,7 @@ app.delete('/courses', (req, res) => {
   });
 });
 
-MongoClient.connect(`mongodb://${process.env.MLAB_USER}:${process.env.MLAB_PASS}@ds011745.mlab.com:11745/courses`, (err, database) => {
+MongoClient.connect(`mongodb://${process.env.MLAB_USER}:${process.env.MLAB_PASS}@${process.env.MLAB_DIR}`, (err, database) => {
   if (err) return console.log(err);
 
   db = database;
