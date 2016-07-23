@@ -1,5 +1,8 @@
 const express = require('express');
-const bodyParser= require('body-parser');
+const bodyParser = require('body-parser');
+const morgan = require('morgan');
+const jwt = require('jsonwebtoken');
+  
 const app = express();
 const ObjectId = require('mongodb').ObjectID;
 
@@ -16,17 +19,29 @@ const allowCrossDomain = (req, res, next) => {
 
 app.use(allowCrossDomain);
 app.use(bodyParser.urlencoded({extended: true}));
+app.use(morgan('dev'));
 
 let db;
 
 app.get('/', (req, res) => {
-  console.log('Root served');
   res.send('Root');
 });
 
-app.get('/courses', (req, res) => {
-  console.log('All courses will be returned');
+app.post('/authenticate', (req, res) => {
+  db.collection('users').findOne({ username: req.body.username }, (err, user) => {
+    if (err || !user || user.password !== req.body.password) {
+      return res.status(401).json({ message: 'Wrong username or password' });
+    }
 
+    const token = jwt.sign(user, process.env.SECRET_KEY, {
+      expiresIn: '2h'
+    });
+
+    res.status(200).json({ token });
+  });
+});
+
+app.get('/courses', (req, res) => {
   db.collection('courses').find({}).toArray((err, courses) => {
     if (err) return console.log(err);
 
@@ -35,8 +50,6 @@ app.get('/courses', (req, res) => {
 });
 
 app.get('/courses/:course_id', (req, res) => {
-  console.log('A single course will be returned');
-
   db.collection('courses').find({_id: ObjectId(req.params.course_id)}).toArray((err, course) => {
     if (err) return console.log(err);
 
@@ -44,9 +57,22 @@ app.get('/courses/:course_id', (req, res) => {
   });
 });
 
-app.post('/courses', (req, res) => {
-  console.log('A course will be saved');
+app.use((req, res, next) => {
+  const token = req.body.token || req.query.token || req.headers['x-access-token'];
 
+  if (token) {
+    jwt.verify(token, process.env.SECRET_KEY, (err, decoded) => {
+      if (err) return res.status(401).json({ message: 'Failed to authenticate token.' });
+      else {
+        req.decoded = decoded;
+        next();
+      }
+    })
+  }
+  else return res.status(401).send({ message: 'No token provided.' });
+});
+
+app.post('/courses', (req, res) => {
   db.collection('courses').save(req.body, (err) => {
     if (err) return console.log(err);
 
@@ -55,8 +81,6 @@ app.post('/courses', (req, res) => {
 });
 
 app.delete('/courses', (req, res) => {
-  console.log('A course will be deleted');
-
   db.collection('courses').remove({_id: ObjectId(req.body.id)}, (err) => {
     if (err) return console.log(err);
 
