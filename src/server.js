@@ -10,11 +10,12 @@ const MongoClient = require('mongodb').MongoClient;
 const port = Number(process.env.PORT || 8000);
 
 const allowCrossDomain = (req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Origin', 'http://localhost:8080');
   res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
+  res.header('Access-Control-Allow-Headers', 'x-access-token, Content-Type, Authorization,' +
+    ' Content-Length, X-Requested-With, X-Course-Id');
 
-  'OPTIONS' === req.method ? res.send(200) : next();
+  'OPTIONS' === req.method ? res.sendStatus(200) : next();
 };
 
 app.use(allowCrossDomain);
@@ -73,19 +74,22 @@ app.use((req, res, next) => {
 });
 
 app.post('/courses', (req, res) => {
-  db.collection('courses').save(req.body, (err) => {
+  db.collection('courses').save(req.body, (err, savedCourse) => {
     if (err) return console.log(err);
 
-    res.json({ message: 'Course created!' });
+    res.json({ message: 'Course created!', course: savedCourse.ops });
   });
 });
 
 app.delete('/courses', (req, res) => {
-  db.collection('courses').remove({_id: ObjectId(req.body.id)}, (err) => {
-    if (err) return console.log(err);
+  db.collection('courses').findAndModify(
+    { _id: ObjectId(req.headers['x-course-id']) }, [], {}, { remove: true },
+    (err, deletedCourse) => {
+      if (err) return console.log(err);
 
-    res.json({ message: 'Course deleted!' });
-  });
+      res.json({message: 'Course deleted!', course: deletedCourse.value});
+    }
+  );
 });
 
 MongoClient.connect(`mongodb://${process.env.MLAB_USER}:${process.env.MLAB_PASS}@${process.env.MLAB_DIR}`, (err, database) => {
